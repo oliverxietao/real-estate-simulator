@@ -1,7 +1,11 @@
+streamlit
+numpy
+pandas
+plotly
+numpy-financial
+sqlalchemy
+
 streamlit==1.32.0
-pandas==2.2.0
-numpy==1.26.4
-plotly==5.18.0
 reportlab==4.1.0
 openpyxl==3.1.2
 pytest==8.0.0

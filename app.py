@@ -7,6 +7,8 @@ import json
 from datetime import datetime, timedelta
 from src.db import init_db
 
+init_db()
+
 def main():
     st.set_page_config(
         page_title="Real Estate Investment Return Simulator",
@@ -928,5 +930,4 @@ def show_expense_input_page():
         st.table(st.session_state.expenses)
 
 if __name__ == "__main__":
-    init_db()
     main() 
