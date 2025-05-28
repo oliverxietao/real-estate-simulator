@@ -5,322 +5,54 @@ from src.visualizer import DataVisualizer
 from src.report_generator import ReportGenerator
 import json
 from datetime import datetime, timedelta
-from src.db import init_db
+from src.db import (
+    init_db, create_user, create_scenario, create_property,
+    create_expense, create_income, create_mortgage,
+    get_property_expenses, get_property_incomes, get_property_mortgages,
+    get_scenario_properties
+)
 
+# Initialize database
 init_db()
 
+# Initialize session state
+if 'user_data' not in st.session_state:
+    st.session_state.user_data = {}
+if 'property_data' not in st.session_state:
+    st.session_state.property_data = []
+
 def main():
-    st.set_page_config(
-        page_title="Real Estate Investment Return Simulator",
-        page_icon="🏠",
-        layout="centered"
+    st.set_page_config(page_title="Real Estate Investment Simulator", layout="wide")
+    
+    # Sidebar navigation with all steps
+    st.sidebar.title("Navigation")
+    page = st.sidebar.radio(
+        "Go to",
+        [
+            "Step 1: Household & Income",
+            "Step 2: Investment Goal",
+            "Step 3: First Property Planning",
+            "Step 4: Rent & Growth",
+            "Step 5: Other Financial Info",
+            "Step 6: Refinance Strategy",
+            "Data"
+        ]
     )
     
-    # Custom CSS for Apple-style design with dark mode support
-    st.markdown("""
-        <style>
-        /* Base styles */
-        .stApp {
-            max-width: 800px;
-            margin: 0 auto;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-        
-        /* Dark mode support */
-        @media (prefers-color-scheme: dark) {
-            .stApp {
-                background-color: #1a1a1a !important;
-                color: #ffffff !important;
-            }
-            .question {
-                color: #fff !important;
-                font-weight: 700 !important;
-                text-shadow: 0 1px 4px #0008;
-            }
-            .subtitle {
-                color: #e0e0e0 !important;
-                font-weight: 400;
-            }
-            .stRadio > div {
-                background-color: #23232b !important;
-                color: #fff !important;
-                border: 1px solid #444 !important;
-                box-shadow: 0 2px 8px #0002;
-            }
-            .stRadio > div:hover {
-                background-color: #33334a !important;
-            }
-            .stNumberInput > div > div > input {
-                background-color: #23232b !important;
-                color: #fff !important;
-                border-color: #4d4d4d !important;
-            }
-            .stNumberInput > div > div > input:focus {
-                border-color: #0071e3 !important;
-                box-shadow: 0 0 0 4px rgba(0,113,227,0.2) !important;
-            }
-            .stSlider > div > div > div {
-                background-color: #0071e3 !important;
-            }
-            .stSlider > div > div > div > div {
-                background-color: #0071e3 !important;
-            }
-            .stProgress > div > div > div {
-                background-color: #0071e3 !important;
-            }
-            .phase-title {
-                color: #fff !important;
-                border-bottom-color: #4d4d4d !important;
-            }
-            .result-box {
-                background-color: #23232b !important;
-                border: 1px solid #4d4d4d !important;
-            }
-            .result-title {
-                color: #fff !important;
-            }
-            .result-value {
-                color: #4da3ff !important;
-            }
-            .scenario-box {
-                background-color: #23232b !important;
-                border: 1px solid #4d4d4d !important;
-            }
-            .scenario-box:hover {
-                border-color: #0071e3 !important;
-                box-shadow: 0 0 0 4px rgba(0,113,227,0.2) !important;
-            }
-            /* Metric cards */
-            .stMetric {
-                background-color: #23232b !important;
-                border: 1px solid #4d4d4d !important;
-                border-radius: 12px;
-                padding: 15px;
-            }
-            .stMetric:hover {
-                border-color: #0071e3 !important;
-                box-shadow: 0 0 0 4px rgba(0,113,227,0.2) !important;
-            }
-            /* Form elements */
-            .stSelectbox > div > div {
-                background-color: #23232b !important;
-                color: #fff !important;
-            }
-            .stDateInput > div > div > input {
-                background-color: #23232b !important;
-                color: #fff !important;
-                border-color: #4d4d4d !important;
-            }
-            /* Buttons */
-            .stButton > button {
-                background-color: #0071e3 !important;
-                color: #fff !important;
-            }
-            .stButton > button:hover {
-                background-color: #0077ed !important;
-            }
-            /* Success message */
-            .stSuccess {
-                background-color: #1a472a !important;
-                color: #fff !important;
-            }
-            /* Warning message */
-            .stWarning {
-                background-color: #472a1a !important;
-                color: #fff !important;
-            }
-        }
-        
-        /* Light mode styles */
-        .question {
-            font-size: 28px;
-            font-weight: 500;
-            margin-bottom: 30px;
-            color: #1d1d1f;
-            line-height: 1.3;
-        }
-        
-        .subtitle {
-            font-size: 17px;
-            color: #86868b;
-            margin-bottom: 30px;
-            line-height: 1.4;
-        }
-        
-        .stButton>button {
-            background-color: #0071e3;
-            color: white;
-            border-radius: 20px;
-            padding: 12px 24px;
-            font-size: 17px;
-            border: none;
-            width: 100%;
-            margin-top: 20px;
-            transition: all 0.3s ease;
-        }
-        
-        .stButton>button:hover {
-            background-color: #0077ed;
-            transform: scale(1.02);
-        }
-        
-        .stRadio > div {
-            padding: 20px;
-            border-radius: 12px;
-            background-color: #f5f5f7;
-            margin-bottom: 10px;
-            transition: all 0.3s ease;
-        }
-        
-        .stRadio > div:hover {
-            background-color: #e8e8ed;
-            transform: scale(1.01);
-        }
-        
-        .stNumberInput > div > div > input {
-            border-radius: 12px;
-            padding: 12px;
-            font-size: 17px;
-            border: 1px solid #d2d2d7;
-        }
-        
-        .stNumberInput > div > div > input:focus {
-            border-color: #0071e3;
-            box-shadow: 0 0 0 4px rgba(0,113,227,0.1);
-        }
-        
-        .stSlider > div > div > div {
-            background-color: #0071e3;
-        }
-        
-        .stSlider > div > div > div > div {
-            background-color: #0071e3;
-        }
-        
-        .stProgress > div > div > div {
-            background-color: #0071e3;
-        }
-        
-        .phase-title {
-            font-size: 24px;
-            font-weight: 600;
-            color: #1d1d1f;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #d2d2d7;
-        }
-        
-        .result-box {
-            background-color: #f5f5f7;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        
-        .result-title {
-            font-size: 20px;
-            font-weight: 500;
-            color: #1d1d1f;
-            margin-bottom: 10px;
-        }
-        
-        .result-value {
-            font-size: 24px;
-            font-weight: 600;
-            color: #0071e3;
-        }
-        
-        .scenario-box {
-            background-color: #f5f5f7;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 10px 0;
-            border: 1px solid #d2d2d7;
-        }
-        
-        .scenario-box:hover {
-            border-color: #0071e3;
-            box-shadow: 0 0 0 4px rgba(0,113,227,0.1);
-        }
-        
-        /* Metric cards */
-        .stMetric {
-            background-color: #f5f5f7;
-            border: 1px solid #d2d2d7;
-            border-radius: 12px;
-            padding: 15px;
-            transition: all 0.3s ease;
-        }
-        
-        .stMetric:hover {
-            border-color: #0071e3;
-            box-shadow: 0 0 0 4px rgba(0,113,227,0.1);
-        }
-        
-        /* Form elements */
-        .stSelectbox > div > div {
-            background-color: #ffffff;
-            border: 1px solid #d2d2d7;
-            border-radius: 12px;
-        }
-        
-        .stDateInput > div > div > input {
-            background-color: #ffffff;
-            border: 1px solid #d2d2d7;
-            border-radius: 12px;
-        }
-        
-        /* Success message */
-        .stSuccess {
-            background-color: #e6f3e6;
-            color: #1a472a;
-        }
-        
-        /* Warning message */
-        .stWarning {
-            background-color: #f3e6e6;
-            color: #472a1a;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # Initialize session state
-    if 'step' not in st.session_state:
-        st.session_state.step = 1
-    if 'scenarios' not in st.session_state:
-        st.session_state.scenarios = []
-    if 'current_scenario' not in st.session_state:
-        st.session_state.current_scenario = {
-            'name': f"Scenario {len(st.session_state.scenarios) + 1}",
-            'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'user_info': {},
-            'assets': []
-        }
-    if 'current_asset' not in st.session_state:
-        st.session_state.current_asset = {}
-    if 'asset_step' not in st.session_state:
-        st.session_state.asset_step = 1
-    
-    # Initialize components
-    input_handler = InputHandler()
-    calculator = InvestmentCalculator()
-    visualizer = DataVisualizer()
-    report_generator = ReportGenerator()
-    
-    # Sidebar for navigation
-    st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Input", "Assets", "Analysis", "Scenarios", "Expenses"])
-    
-    if page == "Input":
-        show_input_page(input_handler, calculator)
-    elif page == "Assets":
-        show_assets_page()
-    elif page == "Analysis":
-        show_analysis_page(calculator, visualizer)
-    elif page == "Scenarios":
-        show_scenarios_page(calculator, visualizer)
-    elif page == "Expenses":
-        show_expense_input_page()
+    if page == "Step 1: Household & Income":
+        show_household_income_page()
+    elif page == "Step 2: Investment Goal":
+        show_investment_goal_page()
+    elif page == "Step 3: First Property Planning":
+        show_property_planning_page()
+    elif page == "Step 4: Rent & Growth":
+        show_rent_growth_page()
+    elif page == "Step 5: Other Financial Info":
+        show_financial_info_page()
+    elif page == "Step 6: Refinance Strategy":
+        show_refinance_strategy_page()
+    else:
+        show_data_page()
 
 def show_input_page(input_handler, calculator):
     # Questions and their corresponding input types
@@ -704,6 +436,106 @@ def show_input_page(input_handler, calculator):
             "default": [5],
             "category": "refinance_info",
             "condition": lambda data: data.get('refinance_count', 0) > 0
+        },
+        {
+            "id": "other_liabilities",
+            "question": "Other Loan Payments ($/month)",
+            "subtitle": "",
+            "type": "number",
+            "min": 0,
+            "step": 100,
+            "category": "user_info"
+        },
+        {
+            "id": "credit_card_debt",
+            "question": "Credit Card Debt ($)",
+            "subtitle": "",
+            "type": "number",
+            "min": 0,
+            "step": 1000,
+            "category": "user_info"
+        },
+        {
+            "id": "other_expenses",
+            "question": "Other Monthly Expenses ($)",
+            "subtitle": "",
+            "type": "number",
+            "min": 0,
+            "step": 100,
+            "category": "user_info"
+        },
+        {
+            "id": "emergency_fund",
+            "question": "Emergency Fund ($)",
+            "subtitle": "",
+            "type": "number",
+            "min": 0,
+            "step": 1000,
+            "category": "user_info"
+        },
+        {
+            "id": "investment_portfolio",
+            "question": "Investment Portfolio Value ($)",
+            "subtitle": "",
+            "type": "number",
+            "min": 0,
+            "step": 10000,
+            "category": "user_info"
+        },
+        {
+            "id": "risk_tolerance",
+            "question": "Risk Tolerance",
+            "subtitle": "",
+            "type": "selectbox",
+            "options": ["Conservative", "Moderate", "Aggressive"],
+            "category": "user_info"
+        },
+        {
+            "id": "refinance_threshold",
+            "question": "Interest Rate Threshold for Refinance (%)",
+            "subtitle": "",
+            "type": "number",
+            "min": 0.0,
+            "max": 20.0,
+            "step": 0.1,
+            "category": "refinance_info"
+        },
+        {
+            "id": "refinance_cost",
+            "question": "Expected Refinance Cost ($)",
+            "subtitle": "",
+            "type": "number",
+            "min": 0,
+            "step": 1000,
+            "category": "refinance_info"
+        },
+        {
+            "id": "target_roi",
+            "question": "Target ROI (%)",
+            "subtitle": "",
+            "type": "number",
+            "min": 0.0,
+            "max": 100.0,
+            "step": 0.5,
+            "category": "refinance_info"
+        },
+        {
+            "id": "investment_horizon",
+            "question": "Investment Horizon (Years)",
+            "subtitle": "",
+            "type": "number",
+            "min": 1,
+            "max": 50,
+            "step": 1,
+            "category": "refinance_info"
+        },
+        {
+            "id": "exit_strategy",
+            "question": "Exit Strategy",
+            "subtitle": "",
+            "type": "selectbox",
+            "options": ["Long-term Hold", "Fix and Flip", "1031 Exchange"],
+            "category": "refinance_info"
         }
     ]
     
@@ -928,6 +760,502 @@ def show_expense_input_page():
     if "expenses" in st.session_state and st.session_state.expenses:
         st.subheader("All Expenses")
         st.table(st.session_state.expenses)
+
+def show_data_page():
+    st.title("📊 Data Management")
+    
+    # Property Information
+    st.subheader("Property Information")
+    properties = get_scenario_properties(1)  # Using scenario_id 1 for now
+    if properties:
+        for prop in properties:
+            with st.expander(f"Property {prop[0]}"):
+                st.write(f"Type: {prop[2]}")
+                st.write(f"Purchase Price: ${prop[3]:,.2f}")
+                st.write(f"Down Payment: ${prop[4]:,.2f}")
+                st.write(f"Mortgage Rate: {prop[5]}%")
+                st.write(f"Loan Term: {prop[6]} years")
+                st.write(f"Rental Income: ${prop[7]:,.2f}")
+                st.write(f"Expected Appreciation: {prop[8]}%")
+                st.write(f"Vacancy Rate: {prop[9]}%")
+    else:
+        st.info("No property information available")
+
+    # Income & Expenses
+    st.subheader("Income & Expenses")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("Expense Records")
+        for prop in properties:
+            expenses = get_property_expenses(prop[0])
+            if expenses:
+                for exp in expenses:
+                    with st.expander(f"Expense {exp[0]}"):
+                        st.write(f"Type: {exp[3]}")
+                        st.write(f"Amount: ${exp[4]:,.2f}")
+                        st.write(f"Date: {exp[5]}")
+            else:
+                st.info("No expense records available")
+    
+    with col2:
+        st.write("Income Records")
+        for prop in properties:
+            incomes = get_property_incomes(prop[0])
+            if incomes:
+                for inc in incomes:
+                    with st.expander(f"Income {inc[0]}"):
+                        st.write(f"Type: {inc[3]}")
+                        st.write(f"Amount: ${inc[4]:,.2f}")
+                        st.write(f"Date: {inc[5]}")
+            else:
+                st.info("No income records available")
+
+    # Mortgage Information
+    st.subheader("Mortgage Information")
+    for prop in properties:
+        mortgages = get_property_mortgages(prop[0])
+        if mortgages:
+            for mort in mortgages:
+                with st.expander(f"Mortgage {mort[0]}"):
+                    st.write(f"Loan Amount: ${mort[2]:,.2f}")
+                    st.write(f"Interest Rate: {mort[3]}%")
+                    st.write(f"Term: {mort[4]} years")
+                    st.write(f"Start Date: {mort[5]}")
+                    st.write(f"End Date: {mort[6]}")
+        else:
+            st.info("No mortgage information available")
+
+def show_household_income_page():
+    st.header("Step 1: User Household Information")
+
+    # Check if user info is already saved
+    if 'user_info_locked' not in st.session_state:
+        st.session_state.user_info_locked = False
+    if 'user_id' not in st.session_state:
+        st.session_state.user_id = None
+    if 'scenario_id' not in st.session_state:
+        st.session_state.scenario_id = None
+
+    # If locked, show info and allow edit
+    if st.session_state.user_info_locked:
+        user_data = st.session_state.user_data
+        st.success("User information saved!")
+        st.write(f"**Household Structure:** {user_data.get('household_type')}")
+        st.write(f"**Primary Income:** ${user_data.get('primary_income', 0):,.2f}")
+        if user_data.get('household_type') == 'Dual-income':
+            st.write(f"**Secondary Income:** ${user_data.get('secondary_income', 0):,.2f}")
+        st.write(f"**Retirement Age:** {user_data.get('retirement_age')}")
+        st.write(f"**Passive Income Goal:** ${user_data.get('monthly_passive_income', 0):,.2f}/mo")
+        if user_data.get('has_net_worth_target') == 'Yes':
+            st.write(f"**Net Worth Target:** ${user_data.get('net_worth_target', 0):,.2f}")
+        if st.button("Edit"):
+            st.session_state.user_info_locked = False
+        return
+
+    # Household Structure
+    household_type = st.radio(
+        "What is your household structure?",
+        ["Single-income", "Dual-income"],
+        horizontal=True,
+        key="household_type"
+    )
+    # Primary Income
+    primary_income = st.number_input(
+        "What is your annual income (Person 1)?",
+        min_value=0,
+        step=10000,
+        key="primary_income"
+    )
+    # Secondary Income (if applicable)
+    if household_type == "Dual-income":
+        secondary_income = st.number_input(
+            "What is your annual income (Person 2)?",
+            min_value=0,
+            step=10000,
+            key="secondary_income"
+        )
+    else:
+        secondary_income = 0
+    # Retirement Age
+    retirement_age = st.number_input(
+        "What age do you plan to retire?",
+        min_value=30,
+        max_value=80,
+        value=65,
+        key="retirement_age"
+    )
+    # Passive Income Goal
+    monthly_passive_income = st.number_input(
+        "How much monthly passive income do you expect during retirement?",
+        min_value=0,
+        step=1000,
+        key="monthly_passive_income"
+    )
+    # Net Worth Target
+    has_net_worth_target = st.radio(
+        "Do you have a net worth target?",
+        ["Yes", "No"],
+        horizontal=True,
+        key="has_net_worth_target"
+    )
+    if has_net_worth_target == "Yes":
+        net_worth_target = st.number_input(
+            "What is your net worth target?",
+            min_value=0,
+            step=100000,
+            key="net_worth_target"
+        )
+    else:
+        net_worth_target = 0
+
+    if st.button("Save and Continue"):
+        # Save to session state
+        st.session_state.user_data.update({
+            'household_type': household_type,
+            'primary_income': primary_income,
+            'secondary_income': secondary_income,
+            'retirement_age': retirement_age,
+            'monthly_passive_income': monthly_passive_income,
+            'has_net_worth_target': has_net_worth_target,
+            'net_worth_target': net_worth_target
+        })
+        # Save to database
+        user_id = create_user(email=None, name=None)
+        scenario_id = create_scenario(user_id, "Default Scenario", data=None)
+        st.session_state.user_id = user_id
+        st.session_state.scenario_id = scenario_id
+        st.session_state.user_info_locked = True
+        st.success("User information saved! You can now proceed to the next step.")
+        st.experimental_rerun()
+
+def show_investment_goal_page():
+    st.header("Step 2: Investment Goal")
+    
+    # Retirement Age
+    st.subheader("🎯 Retirement Planning")
+    retirement_age = st.number_input(
+        "What age do you plan to retire?",
+        min_value=30,
+        max_value=80,
+        value=65,
+        help="This helps us plan your investment timeline"
+    )
+    
+    # Retirement Income
+    monthly_passive_income = st.number_input(
+        "How much monthly passive income do you expect during retirement?",
+        min_value=0,
+        step=1000,
+        help="Enter your target monthly passive income"
+    )
+    
+    # Net Worth Target
+    st.subheader("💼 Net Worth Target")
+    has_net_worth_target = st.radio(
+        "Do you have a net worth target?",
+        ["Yes", "No"],
+        horizontal=True,
+        help="For example, $3,000,000 by age 60"
+    )
+    
+    if has_net_worth_target == "Yes":
+        net_worth_target = st.number_input(
+            "What is your net worth target?",
+            min_value=0,
+            step=100000,
+            help="Enter your target net worth amount"
+        )
+    else:
+        net_worth_target = 0
+    
+    # Save data to session state
+    st.session_state.user_data.update({
+        'retirement_age': retirement_age,
+        'monthly_passive_income': monthly_passive_income,
+        'has_net_worth_target': has_net_worth_target,
+        'net_worth_target': net_worth_target
+    })
+
+def show_property_planning_page():
+    st.header("Step 3: First Property Planning")
+    
+    # Current Status
+    st.subheader("🏡 Property Status")
+    property_ownership = st.radio(
+        "Do you currently own a home or plan to purchase one?",
+        ["Own", "Plan to buy"],
+        horizontal=True
+    )
+    
+    # Property Type
+    st.subheader("📊 Property Type")
+    property_type = st.radio(
+        "Is the first property a:",
+        ["Principal Residence", "Investment Property"],
+        horizontal=True
+    )
+    
+    # Down Payment
+    st.subheader("💵 Down Payment")
+    has_down_payment = st.radio(
+        "Do you already have a down payment saved?",
+        ["Yes", "No"],
+        horizontal=True
+    )
+    
+    if has_down_payment == "Yes":
+        down_payment = st.number_input(
+            "How much is your down payment?",
+            min_value=0,
+            step=10000
+        )
+    else:
+        yearly_savings = st.number_input(
+            "How much can you save yearly for the down payment?",
+            min_value=0,
+            step=1000
+        )
+        savings_years = st.number_input(
+            "For how many years will you save?",
+            min_value=1,
+            max_value=30
+        )
+        down_payment = yearly_savings * savings_years
+    
+    # Property Details
+    st.subheader("🏠 Property Details")
+    purchase_price = st.number_input(
+        "What is your budget or target price for the first property?",
+        min_value=0,
+        step=10000
+    )
+    
+    closing_date = st.date_input(
+        "What is the expected closing date?",
+        min_value=datetime.now()
+    )
+    
+    same_mortgage_date = st.checkbox(
+        "Is the mortgage start date the same as the closing date?"
+    )
+    
+    if not same_mortgage_date:
+        mortgage_start_date = st.date_input(
+            "When will your mortgage start?",
+            min_value=datetime.now()
+        )
+    else:
+        mortgage_start_date = closing_date
+    
+    # Mortgage Details
+    st.subheader("🏦 Mortgage Details")
+    mortgage_rate = st.number_input(
+        "What is the expected mortgage interest rate? (%)",
+        min_value=0.0,
+        max_value=20.0,
+        value=5.0,
+        step=0.1
+    )
+    
+    amortization = st.selectbox(
+        "What is the amortization period?",
+        [20, 25, 30]
+    )
+    
+    loan_term = st.selectbox(
+        "What is the loan term (fixed rate period)?",
+        [1, 2, 3, 4, 5]
+    )
+    
+    # Save data to session state
+    st.session_state.user_data.update({
+        'property_ownership': property_ownership,
+        'property_type': property_type,
+        'has_down_payment': has_down_payment,
+        'down_payment': down_payment,
+        'purchase_price': purchase_price,
+        'closing_date': closing_date,
+        'mortgage_start_date': mortgage_start_date,
+        'mortgage_rate': mortgage_rate,
+        'amortization': amortization,
+        'loan_term': loan_term
+    })
+
+def show_rent_growth_page():
+    st.header("Step 4: Rent & Property Growth Assumptions")
+    
+    if st.session_state.user_data.get('property_type') == "Investment Property":
+        # Rental Input Type
+        st.subheader("💼 Rental Information")
+        rent_input_type = st.radio(
+            "Will you input actual rent or use estimated rental yield?",
+            ["Input actual rent", "Use rental yield"],
+            horizontal=True
+        )
+        
+        if rent_input_type == "Input actual rent":
+            monthly_rent = st.number_input(
+                "What monthly rent do you expect?",
+                min_value=0,
+                step=100
+            )
+        else:
+            rental_yield = st.number_input(
+                "What rental yield do you expect? (%)",
+                min_value=0.0,
+                max_value=20.0,
+                step=0.1
+            )
+            monthly_rent = (st.session_state.user_data['purchase_price'] * rental_yield / 100) / 12
+    
+    # Property Growth
+    st.subheader("📈 Property Growth")
+    appreciation_rate = st.slider(
+        "Expected annual property appreciation rate?",
+        min_value=0.0,
+        max_value=20.0,
+        value=3.0,
+        step=0.1
+    )
+    
+    if st.session_state.user_data.get('property_type') == "Investment Property":
+        vacancy_rate = st.slider(
+            "Expected vacancy rate?",
+            min_value=0.0,
+            max_value=100.0,
+            value=5.0,
+            step=0.1
+        )
+    
+    # Expenses
+    st.subheader("🧾 Property Expenses")
+    expense_type = st.radio(
+        "How would you like to input property expenses?",
+        ["Percentage of property value", "Actual amount"],
+        horizontal=True
+    )
+    
+    if expense_type == "Percentage of property value":
+        expense_rate = st.number_input(
+            "What annual expense rate do you expect? (%)",
+            min_value=0.0,
+            max_value=10.0,
+            value=1.0,
+            step=0.1
+        )
+        annual_expenses = st.session_state.user_data['purchase_price'] * expense_rate / 100
+    else:
+        annual_expenses = st.number_input(
+            "What annual expenses do you expect?",
+            min_value=0,
+            step=1000
+        )
+    
+    # Save data to session state
+    st.session_state.user_data.update({
+        'rent_input_type': rent_input_type if st.session_state.user_data.get('property_type') == "Investment Property" else None,
+        'monthly_rent': monthly_rent if st.session_state.user_data.get('property_type') == "Investment Property" else 0,
+        'appreciation_rate': appreciation_rate,
+        'vacancy_rate': vacancy_rate if st.session_state.user_data.get('property_type') == "Investment Property" else 0,
+        'expense_type': expense_type,
+        'annual_expenses': annual_expenses
+    })
+
+def show_financial_info_page():
+    st.header("Step 5: Other Financial Information")
+    
+    # Investment Loan
+    st.subheader("💸 Investment Loan")
+    has_investment_loan = st.checkbox("Do you have an investment loan?")
+    
+    if has_investment_loan:
+        investment_loan_amount = st.number_input(
+            "What is your investment loan amount?",
+            min_value=0,
+            step=10000
+        )
+        investment_loan_start_date = st.date_input(
+            "When did your investment loan start?",
+            min_value=datetime.now() - timedelta(days=365*30)
+        )
+        investment_loan_rate = st.number_input(
+            "What is your investment loan interest rate? (%)",
+            min_value=0.0,
+            max_value=20.0,
+            step=0.1
+        )
+        investment_loan_payment = st.number_input(
+            "What is your monthly investment loan payment?",
+            min_value=0,
+            step=100
+        )
+        investment_loan_term = st.number_input(
+            "What is your investment loan term? (years)",
+            min_value=1,
+            max_value=30
+        )
+    
+    # Car Loan
+    st.subheader("🚗 Car Loan")
+    has_car_loan = st.checkbox("Do you have a car loan?")
+    
+    if has_car_loan:
+        car_loan_amount = st.number_input(
+            "What is your car loan amount?",
+            min_value=0,
+            step=1000
+        )
+    
+    # Credit Card Debt
+    st.subheader("💳 Credit Card Debt")
+    has_credit_card_debt = st.checkbox("Do you have credit card debt?")
+    
+    if has_credit_card_debt:
+        credit_card_debt = st.number_input(
+            "What is your credit card debt amount?",
+            min_value=0,
+            step=1000
+        )
+    
+    # Save data to session state
+    st.session_state.user_data.update({
+        'has_investment_loan': has_investment_loan,
+        'investment_loan_amount': investment_loan_amount if has_investment_loan else 0,
+        'investment_loan_start_date': investment_loan_start_date if has_investment_loan else None,
+        'investment_loan_rate': investment_loan_rate if has_investment_loan else 0,
+        'investment_loan_payment': investment_loan_payment if has_investment_loan else 0,
+        'investment_loan_term': investment_loan_term if has_investment_loan else 0,
+        'has_car_loan': has_car_loan,
+        'car_loan_amount': car_loan_amount if has_car_loan else 0,
+        'has_credit_card_debt': has_credit_card_debt,
+        'credit_card_debt': credit_card_debt if has_credit_card_debt else 0
+    })
+
+def show_refinance_strategy_page():
+    st.header("Step 6: Refinance Strategy")
+    
+    # Refinance Count
+    st.subheader("🔁 Refinance Plan")
+    refinance_count = st.number_input(
+        "How many times would you like to refinance in this plan?",
+        min_value=0,
+        max_value=10,
+        value=1
+    )
+    
+    if refinance_count > 0:
+        refinance_years = st.multiselect(
+            "In which year(s) do you plan to refinance?",
+            options=list(range(1, 31)),
+            default=[5]
+        )
+    
+    # Save data to session state
+    st.session_state.user_data.update({
+        'refinance_count': refinance_count,
+        'refinance_years': refinance_years if refinance_count > 0 else []
+    })
 
 if __name__ == "__main__":
     main() 
